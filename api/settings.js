@@ -58,15 +58,23 @@ module.exports = async function handler(req, res) {
       updated_at: new Date().toISOString()
     };
     
-    // Upsert the settings
-    const { data, error } = await supabase.from('settings').upsert(dbSettings).select();
+    // Upsert the settings with fallback if schema cache lacks timer_unit
+    let { data, error } = await supabase.from('settings').upsert(dbSettings).select();
+    if (error && error.message && error.message.includes('timer_unit')) {
+      const fallbackSettings = { ...dbSettings };
+      delete fallbackSettings.timer_unit;
+      const retry = await supabase.from('settings').upsert(fallbackSettings).select();
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) return res.status(500).json({ error: error.message });
     
     const resultData = Array.isArray(data) ? data[0] : (data || dbSettings);
     const sanitizedResult = {
       ...resultData,
       is_active: toBool(resultData.is_active),
-      show_timer: toBool(resultData.show_timer)
+      show_timer: toBool(resultData.show_timer),
+      timer_unit: resultData.timer_unit || s.timer_unit || 'hours'
     };
 
     return res.status(200).json(sanitizedResult);

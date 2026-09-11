@@ -25,6 +25,8 @@ CREATE TABLE settings (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS timer_unit TEXT DEFAULT 'hours';
+
 -- Insert initial setting for announcement
 INSERT INTO settings (id, is_active, show_timer, timer_duration, text, promo_code, is_top_banner)
 VALUES ('announcement', false, true, 60, 'Use promo code RAAG to get exclusive discount on your favourite design', 'RAAG', true)
