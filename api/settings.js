@@ -21,6 +21,7 @@ module.exports = async function handler(req, res) {
       is_active: s.is_active || false,
       show_timer: s.show_timer || false,
       timer_duration: s.timer_duration || 60,
+      timer_unit: s.timer_unit || 'minutes',
       text: s.text || '',
       promo_code: s.promo_code || '',
       start_date: s.start_date || null,
