@@ -1251,55 +1251,106 @@ async function loadProducts() {
   saveProductsLocal();
 }
 
+function parseBool(val) {
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'number') return val !== 0;
+  if (typeof val === 'string') {
+    const s = val.trim().toLowerCase();
+    return s === 'true' || s === '1' || s === 'on' || s === 'yes';
+  }
+  return false;
+}
+
 let timerInterval = null;
 async function loadAnnouncement() {
   let data = null;
   try {
     const res = await fetch('/api/settings');
-    if (res.ok) data = await res.json();
+    if (res.ok) {
+      const apiData = await res.json();
+      if (apiData && Object.keys(apiData).length > 0) {
+        data = apiData;
+        try { localStorage.setItem('raag_announcement', JSON.stringify(data)); } catch(_) {}
+      }
+    }
   } catch (e) {}
 
   if (!data || Object.keys(data).length === 0) {
-    data = JSON.parse(localStorage.getItem('raag_announcement') || 'null');
+    try {
+      data = JSON.parse(localStorage.getItem('raag_announcement') || 'null');
+    } catch(e) {}
   }
 
-  // If still no data, or the announcement is not active, hide everything
-  if (!data || !data.is_active) {
-    document.getElementById('announcementBanner').style.display = 'none';
-    const pageEl = document.querySelector('.page');
-    if(pageEl) pageEl.classList.remove('has-promo');
+  if (!data) {
+    data = { is_active: false, show_timer: false, timer_duration: 2, timer_unit: 'hours', text: '', promo_code: 'RAAG' };
+  }
+
+  const isAnnouncementOn = parseBool(data.is_active);
+  const isTimerOn = parseBool(data.show_timer);
+
+  const bannerEl = document.getElementById('announcementBanner');
+  const textEl = document.getElementById('announcementTextEl');
+  const timerContainerEl = document.getElementById('announcementTimerContainer');
+  const pageEl = document.querySelector('.page');
+  const siteNavbar = document.getElementById('siteNavbar');
+
+  // If neither announcement nor countdown timer is active, hide entire banner
+  if (!isAnnouncementOn && !isTimerOn) {
+    if (bannerEl) bannerEl.style.display = 'none';
+    if (pageEl) pageEl.classList.remove('has-promo');
+    if (timerContainerEl) timerContainerEl.style.display = 'none';
+    if (textEl) textEl.style.display = 'none';
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    const timerEl = document.getElementById('announcementTimerEl');
+    if (timerEl) timerEl.innerText = '';
     return;
   }
 
-  document.getElementById('announcementBanner').style.display = 'flex';
-  document.getElementById('siteNavbar').style.top = '0';
-  const pageEl = document.querySelector('.page');
-  if(pageEl) pageEl.classList.add('has-promo');
-  
-  let activePromo = data.promo_code;
-  let promos = [];
-  try {
-    const res2 = await fetch('/api/promocodes');
-    if (res2.ok) promos = await res2.json();
-  } catch(e) {}
-  if (promos.length === 0) {
-    promos = JSON.parse(localStorage.getItem('raag_promocodes') || '[]');
-  }
-  const firstActive = promos.find(p => p.status);
-  if (firstActive) activePromo = firstActive.code;
-  
-  let text = data.text || '';
-  text = text.replace('{code}', `<strong>${activePromo}</strong>`);
-  
-  document.getElementById('announcementTextEl').innerHTML = `🎉 ${text} 🎉`;
+  // At least one feature (Announcement OR Timer) is active
+  if (bannerEl) bannerEl.style.display = 'flex';
+  if (siteNavbar) siteNavbar.style.top = '0';
+  if (pageEl) pageEl.classList.add('has-promo');
 
-  if (data.show_timer && data.timer_duration) {
-    document.getElementById('announcementTimerContainer').style.display = 'flex';
+  // 1. Handle Announcement Text Visibility
+  if (isAnnouncementOn) {
+    let activePromo = data.promo_code || 'RAAG';
+    let promos = [];
+    try {
+      const res2 = await fetch('/api/promocodes');
+      if (res2.ok) promos = await res2.json();
+    } catch(e) {}
+    if (promos.length === 0) {
+      try { promos = JSON.parse(localStorage.getItem('raag_promocodes') || '[]'); } catch(e) {}
+    }
+    const firstActive = promos.find(p => p.status);
+    if (firstActive) activePromo = firstActive.code;
+    
+    let text = data.text || '';
+    text = text.replace('{code}', `<strong>${activePromo}</strong>`);
+    if (textEl) {
+      textEl.innerHTML = `🎉 ${text} 🎉`;
+      textEl.style.display = 'block';
+    }
+  } else {
+    if (textEl) {
+      textEl.innerHTML = '';
+      textEl.style.display = 'none';
+    }
+  }
+
+  // 2. Handle Countdown Timer Visibility & Initialization
+  if (isTimerOn && data.timer_duration) {
+    if (timerContainerEl) timerContainerEl.style.display = 'flex';
     startCountdown(data.timer_duration, data.timer_unit || 'hours', data.updated_at || '');
   } else {
-    document.getElementById('announcementTimerContainer').style.display = 'none';
+    if (timerContainerEl) timerContainerEl.style.display = 'none';
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
-    document.getElementById('announcementTimerEl').innerText = '';
+    const timerEl = document.getElementById('announcementTimerEl');
+    if (timerEl) timerEl.innerText = '';
+    try {
+      localStorage.removeItem('raag_promo_end');
+      localStorage.removeItem('raag_promo_sig');
+    } catch(e) {}
   }
 }
 
@@ -3385,7 +3436,7 @@ async function deletePromoCode(id) {
 }
 
 async function renderAdminAnnouncement(){
-  let s = { is_active: false, show_timer: false, timer_duration: 2, timer_unit: 'hours', text: 'Use promo code RAAG to get exclusive discount on your favourite design', promo_code: 'RAAG' };
+  let s = null;
   try {
     const res = await fetch('/api/settings');
     if (res.ok) {
@@ -3394,6 +3445,15 @@ async function renderAdminAnnouncement(){
     }
   } catch(e) {}
 
+  if (!s) {
+    try { s = JSON.parse(localStorage.getItem('raag_announcement') || 'null'); } catch(e) {}
+  }
+  if (!s) {
+    s = { is_active: false, show_timer: false, timer_duration: 2, timer_unit: 'hours', text: 'Use promo code {code} to get exclusive discount on your favourite design', promo_code: 'RAAG' };
+  }
+
+  const isAnnouncementOn = parseBool(s.is_active);
+  const isTimerOn = parseBool(s.show_timer);
   const currentUnit = s.timer_unit || 'hours';
 
   return `
@@ -3401,11 +3461,11 @@ async function renderAdminAnnouncement(){
   <div style="max-width:600px; background:var(--bg-surface-elevated); padding:var(--lg); border:1px solid var(--border-subtle);">
     <div class="field-row mb-md">
       <div class="checkbox-row">
-        <input type="checkbox" id="announcementActive" ${s.is_active ? 'checked' : ''} style="width:auto; height:auto;"/>
+        <input type="checkbox" id="announcementActive" ${isAnnouncementOn ? 'checked' : ''} style="width:auto; height:auto;"/>
         <label for="announcementActive" style="margin:0;">Turn announcement ON</label>
       </div>
       <div class="checkbox-row">
-        <input type="checkbox" id="announcementTimer" ${s.show_timer ? 'checked' : ''} style="width:auto; height:auto;"/>
+        <input type="checkbox" id="announcementTimer" ${isTimerOn ? 'checked' : ''} style="width:auto; height:auto;"/>
         <label for="announcementTimer" style="margin:0;">Turn countdown timer ON</label>
       </div>
     </div>
@@ -3436,31 +3496,44 @@ async function renderAdminAnnouncement(){
 }
 
 async function saveAdminAnnouncement() {
+  const isAnnouncementOn = document.getElementById("announcementActive").checked;
+  const isTimerOn = document.getElementById("announcementTimer").checked;
+
   const data = {
-    is_active: document.getElementById("announcementActive").checked,
-    show_timer: document.getElementById("announcementTimer").checked,
+    is_active: isAnnouncementOn,
+    show_timer: isTimerOn,
     timer_duration: parseInt(document.getElementById("announcementDuration").value, 10) || 1,
     timer_unit: document.getElementById("announcementUnit").value || 'hours',
     text: document.getElementById("announcementText").value,
     promo_code: document.getElementById("announcementPromoCode").value,
     updated_at: new Date().toISOString()
   };
+
   try {
-    await fetch('/api/settings', {
+    const res = await fetch('/api/settings', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(data)
     });
+    if (res.ok) {
+      const saved = await res.json();
+      if (saved && Object.keys(saved).length > 0) {
+        data.is_active = parseBool(saved.is_active);
+        data.show_timer = parseBool(saved.show_timer);
+      }
+    }
   } catch(e) {}
+
   localStorage.setItem('raag_announcement', JSON.stringify(data));
   // Clear persistent timer end time whenever admin saves new timer settings
   localStorage.removeItem('raag_promo_end');
   localStorage.removeItem('raag_promo_sig');
-  if(timerInterval) clearInterval(timerInterval);
-  document.getElementById('announcementTimerEl').innerText = "";
+  if(timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  const timerEl = document.getElementById('announcementTimerEl');
+  if (timerEl) timerEl.innerText = "";
   
   showToast("Announcement settings saved.");
-  loadAnnouncement();
+  await loadAnnouncement();
 }
 
 function renderAdminSettings(){

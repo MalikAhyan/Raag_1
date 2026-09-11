@@ -1,5 +1,15 @@
 const supabase = require('./_supabase');
 
+function toBool(val) {
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'number') return val !== 0;
+  if (typeof val === 'string') {
+    const s = val.trim().toLowerCase();
+    return s === 'true' || s === '1' || s === 'on' || s === 'yes';
+  }
+  return false;
+}
+
 module.exports = async function handler(req, res) {
   if (req.method === 'GET') {
     const { data, error } = await supabase
@@ -11,30 +21,51 @@ module.exports = async function handler(req, res) {
     if (error && error.code !== 'PGRST116') { // PGRST116 is multiple/no rows
         return res.status(500).json({ error: error.message });
     }
-    return res.status(200).json(data || {});
+    
+    if (!data) return res.status(200).json({});
+
+    const sanitized = {
+      ...data,
+      is_active: toBool(data.is_active),
+      show_timer: toBool(data.show_timer),
+      timer_duration: typeof data.timer_duration === 'number' ? data.timer_duration : (parseInt(data.timer_duration, 10) || 2),
+      timer_unit: data.timer_unit || 'hours',
+      is_top_banner: data.is_top_banner !== undefined ? toBool(data.is_top_banner) : true,
+      show_popup: toBool(data.show_popup)
+    };
+
+    return res.status(200).json(sanitized);
   }
 
   if (req.method === 'PUT') {
-    const s = req.body;
+    const s = req.body || {};
     const dbSettings = {
       id: 'announcement',
-      is_active: s.is_active || false,
-      show_timer: s.show_timer || false,
-      timer_duration: s.timer_duration !== undefined ? s.timer_duration : 2,
+      is_active: toBool(s.is_active),
+      show_timer: toBool(s.show_timer),
+      timer_duration: typeof s.timer_duration === 'number' ? s.timer_duration : (parseInt(s.timer_duration, 10) || 2),
       timer_unit: s.timer_unit || 'hours',
       text: s.text || '',
       promo_code: s.promo_code || '',
       start_date: s.start_date || null,
       end_date: s.end_date || null,
-      is_top_banner: s.is_top_banner !== undefined ? s.is_top_banner : true,
-      show_popup: s.show_popup || false,
+      is_top_banner: s.is_top_banner !== undefined ? toBool(s.is_top_banner) : true,
+      show_popup: toBool(s.show_popup),
       updated_at: new Date().toISOString()
     };
     
     // Upsert the settings
     const { data, error } = await supabase.from('settings').upsert(dbSettings).select();
     if (error) return res.status(500).json({ error: error.message });
-    return res.status(200).json(data);
+    
+    const resultData = Array.isArray(data) ? data[0] : (data || dbSettings);
+    const sanitizedResult = {
+      ...resultData,
+      is_active: toBool(resultData.is_active),
+      show_timer: toBool(resultData.show_timer)
+    };
+
+    return res.status(200).json(sanitizedResult);
   }
 
   res.setHeader('Allow', ['GET', 'PUT']);
