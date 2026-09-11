@@ -1,7 +1,28 @@
 {
-  "functions": {
-    "api/*.js": {
-      "maxDuration": 30
-    }
-  }
+  "builds": [
+    { "src": "api/*.js", "use": "@vercel/node" },
+    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "404.html", "use": "@vercel/static" },
+    { "src": "upload.html", "use": "@vercel/static" },
+    { "src": "hero.jpg", "use": "@vercel/static" },
+    { "src": "hero_1.png", "use": "@vercel/static" },
+    { "src": "logo.png", "use": "@vercel/static" },
+    { "src": "public/**/*", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/api/products", "dest": "/api/products.js" },
+    { "src": "/api/upload", "dest": "/api/upload.js" },
+    { "src": "/api/orders", "dest": "/api/orders.js" },
+    { "src": "/api/customers", "dest": "/api/customers.js" },
+    { "src": "/api/promocodes", "dest": "/api/promocodes.js" },
+    { "src": "/api/settings", "dest": "/api/settings.js" },
+    { "src": "/api/auth", "dest": "/api/auth.js" },
+    { "src": "/upload.html", "dest": "/upload.html" },
+    { "src": "/404.html", "dest": "/404.html" },
+    { "src": "/hero.jpg", "dest": "/hero.jpg" },
+    { "src": "/hero_1.png", "dest": "/hero_1.png" },
+    { "src": "/logo.png", "dest": "/logo.png" },
+    { "src": "/public/(.*)", "dest": "/public/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
 }
