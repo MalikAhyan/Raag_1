@@ -1260,7 +1260,7 @@ async function loadAnnouncement() {
   } catch (e) {}
 
   if (!data || Object.keys(data).length === 0) {
-    data = JSON.parse(localStorage.getItem('raag_announcement') || '{"is_active":false, "show_timer":false, "timer_duration":60, "text":"Use promo code {code} to get exclusive discount", "promo_code":"RAAG"}');
+    data = JSON.parse(localStorage.getItem('raag_announcement') || '{"is_active":false, "show_timer":false, "timer_duration":2, "timer_unit":"hours", "text":"Use promo code {code} to get exclusive discount", "promo_code":"RAAG"}');
   }
 
   if (data && data.is_active) {
@@ -1288,7 +1288,7 @@ async function loadAnnouncement() {
 
     if (data.show_timer && data.timer_duration) {
       document.getElementById('announcementTimerContainer').style.display = 'flex';
-      startCountdown(data.timer_duration, data.timer_unit || 'hours');
+      startCountdown(data.timer_duration, data.timer_unit || 'hours', data.updated_at);
     } else {
       document.getElementById('announcementTimerContainer').style.display = 'none';
     }
@@ -1299,7 +1299,7 @@ async function loadAnnouncement() {
   }
 }
 
-function startCountdown(duration, unit = 'hours') {
+function startCountdown(duration, unit = 'hours', updatedAt = '') {
   let durationMs = 0;
   const num = parseFloat(duration) || 1;
   
@@ -1311,6 +1311,15 @@ function startCountdown(duration, unit = 'hours') {
     durationMs = num * 7 * 24 * 60 * 60 * 1000;
   } else { // default 'hours'
     durationMs = num * 60 * 60 * 1000;
+  }
+
+  // Create signature for current timer configuration
+  const sig = `${num}_${unit}_${updatedAt || ''}`;
+  const savedSig = localStorage.getItem('raag_promo_sig');
+
+  if (savedSig !== sig) {
+    localStorage.removeItem('raag_promo_end');
+    localStorage.setItem('raag_promo_sig', sig);
   }
 
   let endTime;
@@ -1348,9 +1357,13 @@ function startCountdown(duration, unit = 'hours') {
     const seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
     let displayStr = "";
-    if (days > 0 || unit === 'days' || unit === 'weeks') {
-      displayStr = `${days}d ${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
-    } else if (hours > 0 || unit === 'hours') {
+    if (unit === 'days' || unit === 'weeks') {
+      if (days > 0) {
+        displayStr = `${days}d ${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
+      } else {
+        displayStr = `${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
+      }
+    } else if (unit === 'hours') {
       const totalHours = Math.floor(distance / (1000 * 60 * 60));
       displayStr = `${String(totalHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     } else {
@@ -3408,7 +3421,8 @@ async function saveAdminAnnouncement() {
     timer_duration: parseInt(document.getElementById("announcementDuration").value, 10) || 1,
     timer_unit: document.getElementById("announcementUnit").value || 'hours',
     text: document.getElementById("announcementText").value,
-    promo_code: document.getElementById("announcementPromoCode").value
+    promo_code: document.getElementById("announcementPromoCode").value,
+    updated_at: new Date().toISOString()
   };
   try {
     await fetch('/api/settings', {
@@ -3420,6 +3434,7 @@ async function saveAdminAnnouncement() {
   localStorage.setItem('raag_announcement', JSON.stringify(data));
   // Clear persistent timer end time whenever admin saves new timer settings
   localStorage.removeItem('raag_promo_end');
+  localStorage.removeItem('raag_promo_sig');
   if(timerInterval) clearInterval(timerInterval);
   document.getElementById('announcementTimerEl').innerText = "";
   
