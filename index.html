@@ -2939,6 +2939,7 @@ function openAdminProductModal(id = null){
       <div class="admin-modal" id="adminProductModal" style="position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:var(--bg-surface-elevated); border:1px solid var(--border-subtle); width:calc(100% - 2rem); max-width:500px; max-height:90vh; overflow-y:auto; z-index:801; display:none; flex-direction:column; padding:var(--lg);">
         <h2 class="t-headline-md mb-md" id="adminModalTitle">Edit Product</h2>
         <div class="field"><label>Name</label><input type="text" id="adminProdName" /></div>
+        <div class="field"><label>Product Description / About</label><textarea id="adminProdDescription" placeholder="Enter product description / details..." style="width:100%; min-height:75px; background:var(--bg-surface-field); border:1px solid var(--border-subtle); color:#fff; padding:8px; font-family:inherit; font-size:0.85rem; border-radius:0; resize:vertical;"></textarea></div>
         <div class="field-row">
           <div class="field"><label>Original Price (Rs.)</label><input type="number" id="adminProdCompareAt" /></div>
           <div class="field"><label>Sale Price (Rs.)</label><input type="number" id="adminProdPrice" /></div>
@@ -2985,7 +2986,8 @@ function openAdminProductModal(id = null){
   if(id){
     const p = getProduct(id);
     document.getElementById("adminModalTitle").textContent = "Edit Product";
-    document.getElementById("adminProdName").value = p.name;
+    document.getElementById("adminProdName").value = p.name || "";
+    document.getElementById("adminProdDescription").value = p.description || "";
     document.getElementById("adminProdCompareAt").value = p.compareAt || "";
     document.getElementById("adminProdPrice").value = p.price;
     document.getElementById("adminProdPromoPrice").value = p.promoPrice || "";
@@ -3009,6 +3011,7 @@ function openAdminProductModal(id = null){
   } else {
     document.getElementById("adminModalTitle").textContent = "Add Product";
     document.getElementById("adminProdName").value = "";
+    document.getElementById("adminProdDescription").value = "";
     document.getElementById("adminProdCompareAt").value = "";
     document.getElementById("adminProdPrice").value = "";
     document.getElementById("adminProdPromoPrice").value = "";
@@ -3083,6 +3086,7 @@ async function saveAdminProduct(){
   if (saveBtn) saveBtn.disabled = true;
 
   const name = document.getElementById("adminProdName").value;
+  const description = document.getElementById("adminProdDescription").value;
   const price = parseInt(document.getElementById("adminProdPrice").value, 10);
   const compareAtVal = document.getElementById("adminProdCompareAt").value;
   const promoPriceVal = document.getElementById("adminProdPromoPrice").value;
@@ -3104,6 +3108,7 @@ async function saveAdminProduct(){
     p = getProduct(editingProductId);
     if(p) {
       p.name = name || p.name;
+      p.description = description !== undefined ? description : (p.description || "");
       p.price = isNaN(price) ? p.price : price;
       p.compareAt = compareAt;
       p.promoPrice = promoPrice;
@@ -3131,7 +3136,7 @@ async function saveAdminProduct(){
       limited: false,
       soldOut: soldOut,
       edition: "DROP 004",
-      description: "A new piece added to the collection.",
+      description: description || "A new piece added to the collection.",
       details: ["Refined tailoring", "Heavyweight fabric"],
       sizeGuide: "Fits true to size.",
       shipping: "Express shipping.",
@@ -3294,39 +3299,73 @@ async function deleteCustomer(id) {
 function renderAdminCommunity() {
   return `
   <div class="admin-section-head">
-    <h1 class="t-headline-lg">Community</h1>
-    <button class="btn btn-primary" onclick="document.getElementById('communityUpload').click()">Upload Photo</button>
-    <input type="file" id="communityUpload" accept="image/*" style="display:none" onchange="handleCommunityUpload(event)" />
+    <div>
+      <h1 class="t-headline-lg">Instagram Feed / Community Posts</h1>
+      <p class="t-body-sm text-tertiary" style="margin-top:4px;">Manage photos displayed in the "Follow @${(STORE_CONFIG.instagram||'raag').replace('@','')}" grid on the home page.</p>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn btn-secondary" onclick="addCommunityUrlPhoto()">Add Image URL</button>
+      <button class="btn btn-primary" onclick="document.getElementById('communityUpload').click()">Upload Photo</button>
+      <input type="file" id="communityUpload" accept="image/*" style="display:none" onchange="handleCommunityUpload(event)" />
+    </div>
   </div>
-  <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--md);">
+  <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--md);">
     ${MOCK_COMMUNITY.map(c => `
-      <div style="border: 1px solid var(--border-subtle); padding: var(--sm); background: var(--bg-surface-elevated);">
-        <img src="${c.imageUrl}" style="width: 100%; aspect-ratio: 4/5; object-fit: cover;" />
-        <p class="t-body-sm mt-sm" style="color: var(--text-secondary);">${c.caption || 'No caption'}</p>
-        <button class="btn-link t-body-sm mt-sm" style="color: var(--state-sale);" onclick="deleteCommunityPhoto('${c.id}')">Delete</button>
+      <div style="border: 1px solid var(--border-subtle); padding: var(--sm); background: var(--bg-surface-elevated); display:flex; flex-direction:column;">
+        <img src="${c.imageUrl}" style="width: 100%; aspect-ratio: 1; object-fit: cover;" onerror="this.src='hero.jpg'" />
+        <div style="padding: 10px 0; flex:1;">
+          <p class="t-body-sm" style="color: var(--text-primary); font-weight:500;">${c.caption || 'No caption'}</p>
+          ${c.postUrl ? `<a href="${c.postUrl}" target="_blank" rel="noopener" class="t-body-sm text-tertiary" style="text-decoration:underline; font-size:0.75rem; display:inline-block; margin-top:4px;">View Post Link</a>` : ''}
+        </div>
+        <button class="btn-link t-body-sm" style="color: var(--state-sale); text-align:left; margin-top:4px;" onclick="deleteCommunityPhoto('${c.id}')">Delete</button>
       </div>
     `).join("")}
-    ${MOCK_COMMUNITY.length === 0 ? '<p class="text-tertiary">No community photos uploaded yet.</p>' : ''}
+    ${MOCK_COMMUNITY.length === 0 ? '<div style="grid-column: 1/-1; padding:40px; text-align:center; background:var(--bg-surface-elevated); border:1px solid var(--border-subtle);"><p class="text-tertiary">No Instagram photos uploaded yet. Click "Upload Photo" or "Add Image URL" above to feature your posts on the homepage grid.</p></div>' : ''}
   </div>`;
 }
 
 async function handleCommunityUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(event) {
-    const caption = prompt("Enter a caption or Instagram handle (optional):") || "";
-    const newPhoto = { id: 'comm-' + Date.now(), imageUrl: event.target.result, caption };
+  try {
+    showToast("Compressing & uploading photo...");
+    const compressedUrl = await adminCompressImage(file, 1000, 1250, 0.85);
+    const caption = prompt("Enter a caption or Instagram handle (e.g. @raag__official):") || "";
+    const postUrl = prompt("Enter Instagram post URL (optional, e.g. https://instagram.com/p/...):") || "";
+    const newPhoto = { 
+      id: 'comm-' + Date.now(), 
+      imageUrl: compressedUrl, 
+      caption: caption,
+      postUrl: postUrl 
+    };
     MOCK_COMMUNITY.unshift(newPhoto);
     try { localStorage.setItem('raag_community', JSON.stringify(MOCK_COMMUNITY)); } catch(e) {}
     render();
-    showToast("Community photo added");
+    showToast("Instagram photo added");
+  } catch(err) {
+    showToast("Failed to process photo: " + err.message);
+  }
+}
+
+function addCommunityUrlPhoto() {
+  const imageUrl = prompt("Paste Image URL:");
+  if (!imageUrl || !imageUrl.trim()) return;
+  const caption = prompt("Enter caption or Instagram handle (optional):") || "";
+  const postUrl = prompt("Enter Instagram post URL (optional):") || "";
+  const newPhoto = {
+    id: 'comm-' + Date.now(),
+    imageUrl: imageUrl.trim(),
+    caption: caption.trim(),
+    postUrl: postUrl.trim()
   };
-  reader.readAsDataURL(file);
+  MOCK_COMMUNITY.unshift(newPhoto);
+  try { localStorage.setItem('raag_community', JSON.stringify(MOCK_COMMUNITY)); } catch(e) {}
+  render();
+  showToast("Photo added to Instagram grid");
 }
 
 function deleteCommunityPhoto(id) {
-  if (!confirm("Delete this photo?")) return;
+  if (!confirm("Delete this photo from Instagram grid?")) return;
   MOCK_COMMUNITY = MOCK_COMMUNITY.filter(c => c.id !== id);
   try { localStorage.setItem('raag_community', JSON.stringify(MOCK_COMMUNITY)); } catch(e) {}
   render();
@@ -3596,7 +3635,18 @@ async function render(){
 /* ============================================================
    INIT & BOOTSTRAP
    ============================================================ */
+function loadCommunityData() {
+  try {
+    const saved = localStorage.getItem('raag_community');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) MOCK_COMMUNITY = parsed;
+    }
+  } catch(e) {}
+}
+
 async function bootstrap() {
+  loadCommunityData();
   await loadProducts();
   await loadAnnouncement();
   if (adminAuthed) await loadAdminData();
