@@ -1265,7 +1265,7 @@ let timerInterval = null;
 async function loadAnnouncement() {
   let data = null;
   try {
-    const res = await fetch('/api/settings');
+    const res = await fetch('/api/settings?t=' + Date.now(), { cache: 'no-store' });
     if (res.ok) {
       const apiData = await res.json();
       if (apiData && Object.keys(apiData).length > 0) {
@@ -3438,7 +3438,7 @@ async function deletePromoCode(id) {
 async function renderAdminAnnouncement(){
   let s = null;
   try {
-    const res = await fetch('/api/settings');
+    const res = await fetch('/api/settings?t=' + Date.now(), { cache: 'no-store' });
     if (res.ok) {
         const data = await res.json();
         if(data && Object.keys(data).length > 0) s = data;
@@ -3513,7 +3513,8 @@ async function saveAdminAnnouncement() {
     const res = await fetch('/api/settings', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
+      cache: 'no-store'
     });
     if (res.ok) {
       const saved = await res.json();
