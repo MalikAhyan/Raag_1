@@ -39,8 +39,47 @@
     text-transform: uppercase;
   }
   button:hover { background: #ddd; }
+  button:disabled { background: #555; color: #888; cursor: not-allowed; }
   #status { margin-top: 1rem; color: #4caf50; }
   #error { margin-top: 1rem; color: #f44336; }
+  .preview-row { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+  .preview-box {
+    flex: 1;
+    aspect-ratio: 3/4;
+    background: #1a1a1a;
+    border: 1px dashed #444;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+  .preview-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .preview-label {
+    font-size: 0.7rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: #333;
+    margin-top: 0.5rem;
+    display: none;
+  }
+  .progress-bar .fill {
+    height: 100%;
+    background: #4caf50;
+    width: 0%;
+    transition: width 0.3s;
+  }
+  .current-images { margin-bottom: 1.5rem; }
+  .current-images h3 { font-size: 0.85rem; color: #888; margin-bottom: 0.5rem; text-transform: uppercase; }
 </style>
 </head>
 <body>
@@ -50,23 +89,34 @@
   
   <div class="field">
     <label>Select Product</label>
-    <select id="productSelect">
+    <select id="productSelect" onchange="onProductSelected()">
       <option value="">Loading products...</option>
     </select>
   </div>
 
+  <div class="current-images" id="currentImages" style="display:none;">
+    <h3>Current Images</h3>
+    <div class="preview-row" id="currentPreviewRow"></div>
+  </div>
+
   <div class="field">
     <label>Front Image (Default)</label>
-    <input type="file" id="frontImage" accept="image/*" />
+    <input type="file" id="frontImage" accept="image/*" onchange="previewFile('frontImage','frontPreview')" />
   </div>
 
   <div class="field">
     <label>Back Image (Hover effect)</label>
-    <input type="file" id="backImage" accept="image/*" />
+    <input type="file" id="backImage" accept="image/*" onchange="previewFile('backImage','backPreview')" />
   </div>
 
-  <button onclick="uploadImages()">Upload</button>
+  <div class="preview-row">
+    <div class="preview-box" id="frontPreview"><span class="preview-label">Front Preview</span></div>
+    <div class="preview-box" id="backPreview"><span class="preview-label">Back Preview</span></div>
+  </div>
+
+  <button id="uploadBtn" onclick="uploadImages()">Upload</button>
   
+  <div class="progress-bar" id="progressBar"><div class="fill" id="progressFill"></div></div>
   <div id="status"></div>
   <div id="error"></div>
 </div>
@@ -99,7 +149,53 @@ async function loadProducts() {
   });
 }
 
-function compressImage(file, maxWidth = 1200, maxHeight = 1600, quality = 0.8) {
+function onProductSelected() {
+  const productId = document.getElementById('productSelect').value;
+  const container = document.getElementById('currentImages');
+  const row = document.getElementById('currentPreviewRow');
+  
+  if (!productId) {
+    container.style.display = 'none';
+    return;
+  }
+
+  const product = products.find(p => p.id === productId);
+  if (!product) {
+    container.style.display = 'none';
+    return;
+  }
+
+  let images = product.images || [];
+  if (typeof images === 'string') {
+    try { images = JSON.parse(images); } catch(e) { images = []; }
+  }
+
+  // Filter out base64 and empty strings - only show real URLs
+  const realImages = images.filter(img => typeof img === 'string' && img.trim() && !img.startsWith('data:'));
+  
+  if (realImages.length === 0) {
+    row.innerHTML = '<span class="preview-label">No images uploaded yet</span>';
+  } else {
+    row.innerHTML = realImages.map((url, i) => 
+      `<div class="preview-box"><img src="${url}" alt="${i === 0 ? 'Front' : 'Back'}" /></div>`
+    ).join('');
+  }
+  container.style.display = 'block';
+}
+
+function previewFile(inputId, previewId) {
+  const file = document.getElementById(inputId).files[0];
+  const previewEl = document.getElementById(previewId);
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    previewEl.innerHTML = `<img src="${e.target.result}" alt="Preview" />`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function compressImage(file, maxWidth = 1200, maxHeight = 1600, quality = 0.82) {
   return new Promise((resolve, reject) => {
     if (!file) return resolve(null);
     const reader = new FileReader();
@@ -132,9 +228,28 @@ function compressImage(file, maxWidth = 1200, maxHeight = 1600, quality = 0.8) {
   });
 }
 
+async function uploadSingleImage(productId, imageData, slot) {
+  const res = await fetch('/api/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ productId, imageData, slot })
+  });
+  
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({ error: 'Upload failed' }));
+    throw new Error(errBody.error || 'Upload failed with status ' + res.status);
+  }
+  
+  return await res.json();
+}
+
 async function uploadImages() {
   const statusEl = document.getElementById('status');
   const errorEl = document.getElementById('error');
+  const progressBar = document.getElementById('progressBar');
+  const progressFill = document.getElementById('progressFill');
+  const uploadBtn = document.getElementById('uploadBtn');
+  
   statusEl.textContent = '';
   errorEl.textContent = '';
 
@@ -152,52 +267,59 @@ async function uploadImages() {
     return;
   }
 
-  statusEl.textContent = 'Processing images...';
+  uploadBtn.disabled = true;
+  progressBar.style.display = 'block';
+  progressFill.style.width = '10%';
 
   try {
-    const frontBase64 = await compressImage(frontFile);
-    const backBase64 = await compressImage(backFile);
+    let totalSteps = (frontFile ? 1 : 0) + (backFile ? 1 : 0);
+    let completedSteps = 0;
 
-    const product = products.find(p => p.id === productId);
-    if (!product) throw new Error('Product not found in local array');
-
-    // Make sure we have an array
-    if (!Array.isArray(product.images)) {
-      product.images = [];
+    if (frontFile) {
+      statusEl.textContent = 'Compressing front image...';
+      progressFill.style.width = '20%';
+      const frontData = await compressImage(frontFile);
+      
+      statusEl.textContent = 'Uploading front image to server...';
+      progressFill.style.width = '40%';
+      await uploadSingleImage(productId, frontData, 0);
+      completedSteps++;
+      progressFill.style.width = (completedSteps / totalSteps * 80 + 20) + '%';
     }
 
-    if (frontBase64) {
-      product.images[0] = frontBase64;
-    }
-    if (backBase64) {
-      product.images[1] = backBase64;
-    }
-
-    // Update local storage
-    localStorage.setItem('raag_products', JSON.stringify(products));
-
-    // Try API PUT
-    try {
-      const res = await fetch('/api/products', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(product)
-      });
-      if (!res.ok) {
-        console.warn('API sync failed, but saved locally.');
-      }
-    } catch (e) {
-      console.warn('API sync failed, saved locally only.');
+    if (backFile) {
+      statusEl.textContent = 'Compressing back image...';
+      const backData = await compressImage(backFile);
+      
+      statusEl.textContent = 'Uploading back image to server...';
+      progressFill.style.width = '80%';
+      await uploadSingleImage(productId, backData, 1);
+      completedSteps++;
     }
 
-    statusEl.textContent = 'Images uploaded successfully!';
+    progressFill.style.width = '100%';
+    statusEl.textContent = '✅ Images uploaded successfully! They will now show on ALL devices.';
     
     // Clear inputs
     document.getElementById('frontImage').value = '';
     document.getElementById('backImage').value = '';
+    document.getElementById('frontPreview').innerHTML = '<span class="preview-label">Front Preview</span>';
+    document.getElementById('backPreview').innerHTML = '<span class="preview-label">Back Preview</span>';
+
+    // Reload products to show updated images
+    await loadProducts();
+    onProductSelected();
+
+    setTimeout(() => {
+      progressBar.style.display = 'none';
+      progressFill.style.width = '0%';
+    }, 3000);
 
   } catch (err) {
-    errorEl.textContent = 'Error: ' + err.message;
+    errorEl.textContent = '❌ Error: ' + err.message;
+    progressBar.style.display = 'none';
+  } finally {
+    uploadBtn.disabled = false;
   }
 }
 

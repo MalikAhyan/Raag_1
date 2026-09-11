@@ -1,5 +1,17 @@
 const supabase = require('./_supabase');
 
+// Helper: strip base64 data URIs from images array to prevent oversized DB writes
+function sanitizeImages(images) {
+  if (!images) return [];
+  let arr = images;
+  if (typeof arr === 'string') {
+    try { arr = JSON.parse(arr); } catch(e) { arr = []; }
+  }
+  if (!Array.isArray(arr)) return [];
+  // Only keep real URLs, strip base64 data URIs
+  return arr.filter(img => typeof img === 'string' && img.trim() && !img.startsWith('data:'));
+}
+
 module.exports = async function handler(req, res) {
   if (req.method === 'GET') {
     const { data, error } = await supabase
@@ -48,7 +60,7 @@ module.exports = async function handler(req, res) {
       shipping: p.shipping || null,
       returns: p.returns || null,
       glyph: p.glyph || null,
-      images: JSON.stringify(p.images || [])
+      images: JSON.stringify(sanitizeImages(p.images))
     };
     
     const { data, error } = await supabase.from('products').insert([dbProduct]).select();
@@ -76,7 +88,7 @@ module.exports = async function handler(req, res) {
       shipping: p.shipping || null,
       returns: p.returns || null,
       glyph: p.glyph || null,
-      images: JSON.stringify(p.images || []),
+      images: JSON.stringify(sanitizeImages(p.images)),
       updated_at: new Date().toISOString()
     };
     
