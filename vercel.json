@@ -7,6 +7,7 @@
     { "src": "hero.jpg", "use": "@vercel/static" },
     { "src": "hero_1.png", "use": "@vercel/static" },
     { "src": "logo.png", "use": "@vercel/static" },
+    { "src": "vid.mp4", "use": "@vercel/static" },
     { "src": "public/**/*", "use": "@vercel/static" }
   ],
   "routes": [
@@ -22,6 +23,7 @@
     { "src": "/hero.jpg", "dest": "/hero.jpg" },
     { "src": "/hero_1.png", "dest": "/hero_1.png" },
     { "src": "/logo.png", "dest": "/logo.png" },
+    { "src": "/vid.mp4", "dest": "/vid.mp4" },
     { "src": "/public/(.*)", "dest": "/public/$1" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
