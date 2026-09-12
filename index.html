@@ -3399,24 +3399,45 @@ async function handleCommunityUpload(e) {
   try {
     showToast("Compressing & uploading photo...");
     const compressedUrl = await adminCompressImage(file, 1000, 1250, 0.85);
+    
+    // Upload image file to Supabase Storage via /api/upload
+    const upRes = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productId: 'community', imageData: compressedUrl })
+    });
+    
+    const upData = await upRes.json();
+    if (!upRes.ok || !upData.url) {
+      throw new Error(upData.error || 'Failed to upload photo to storage server');
+    }
+
     const caption = prompt("Enter a caption or Instagram handle (e.g. @raag__official):") || "";
     const postUrl = prompt("Enter Instagram post URL (optional, e.g. https://instagram.com/p/...):") || "";
     const newPhoto = { 
       id: 'comm-' + Date.now(), 
-      imageUrl: compressedUrl, 
+      imageUrl: upData.url, 
       caption: caption,
       postUrl: postUrl 
     };
     MOCK_COMMUNITY.unshift(newPhoto);
+
+    // Persist to Supabase DB via /api/community
+    await fetch('/api/community', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(MOCK_COMMUNITY)
+    });
+
     try { localStorage.setItem('raag_community', JSON.stringify(MOCK_COMMUNITY)); } catch(e) {}
     render();
-    showToast("Instagram photo added");
+    showToast("Instagram photo added successfully!");
   } catch(err) {
     showToast("Failed to process photo: " + err.message);
   }
 }
 
-function addCommunityUrlPhoto() {
+async function addCommunityUrlPhoto() {
   const imageUrl = prompt("Paste Image URL:");
   if (!imageUrl || !imageUrl.trim()) return;
   const caption = prompt("Enter caption or Instagram handle (optional):") || "";
@@ -3428,14 +3449,36 @@ function addCommunityUrlPhoto() {
     postUrl: postUrl.trim()
   };
   MOCK_COMMUNITY.unshift(newPhoto);
+  
+  try {
+    await fetch('/api/community', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(MOCK_COMMUNITY)
+    });
+  } catch(e) {
+    console.error("Failed to sync community URL to database:", e);
+  }
+
   try { localStorage.setItem('raag_community', JSON.stringify(MOCK_COMMUNITY)); } catch(e) {}
   render();
   showToast("Photo added to Instagram grid");
 }
 
-function deleteCommunityPhoto(id) {
+async function deleteCommunityPhoto(id) {
   if (!confirm("Delete this photo from Instagram grid?")) return;
   MOCK_COMMUNITY = MOCK_COMMUNITY.filter(c => c.id !== id);
+  
+  try {
+    await fetch('/api/community', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(MOCK_COMMUNITY)
+    });
+  } catch(e) {
+    console.error("Failed to sync community deletion to database:", e);
+  }
+
   try { localStorage.setItem('raag_community', JSON.stringify(MOCK_COMMUNITY)); } catch(e) {}
   render();
   showToast("Photo deleted");
@@ -3717,7 +3760,20 @@ async function render(){
 /* ============================================================
    INIT & BOOTSTRAP
    ============================================================ */
-function loadCommunityData() {
+async function loadCommunityData() {
+  try {
+    const res = await fetch('/api/community?t=' + Date.now());
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        MOCK_COMMUNITY = data;
+        try { localStorage.setItem('raag_community', JSON.stringify(MOCK_COMMUNITY)); } catch(e) {}
+        return;
+      }
+    }
+  } catch(e) {
+    console.warn("Could not load community posts from DB, using fallback:", e);
+  }
   try {
     const saved = localStorage.getItem('raag_community');
     if (saved) {
@@ -3728,7 +3784,7 @@ function loadCommunityData() {
 }
 
 async function bootstrap() {
-  loadCommunityData();
+  await loadCommunityData();
   await loadProducts();
   await loadAnnouncement();
   if (adminAuthed) await loadAdminData();

@@ -35,6 +35,15 @@
     { "src": "/api/customers", "dest": "/api/customers.js" },
     { "src": "/api/promocodes", "dest": "/api/promocodes.js" },
     { 
+      "src": "/api/community", 
+      "dest": "/api/community.js",
+      "headers": {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+      }
+    },
+    { 
       "src": "/api/settings", 
       "dest": "/api/settings.js",
       "headers": {

@@ -39,7 +39,9 @@ module.exports = async function handler(req, res) {
     // Determine file extension
     const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
     const slotName = slot === 1 ? 'back' : 'front';
-    const fileName = `products/${productId}/${slotName}.${ext}`;
+    const fileName = productId === 'community' 
+      ? `community/comm-${Date.now()}.${ext}` 
+      : `products/${productId}/${slotName}.${ext}`;
 
     // Upload to Supabase Storage (bucket: "product-images")
     const { data: uploadData, error: uploadError } = await supabase.storage
@@ -61,6 +63,13 @@ module.exports = async function handler(req, res) {
 
     const baseUrl = (urlData.publicUrl || '').split('?')[0];
     const publicUrl = `${baseUrl}?v=${Date.now()}`;
+
+    if (productId === 'community') {
+      return res.status(200).json({
+        success: true,
+        url: publicUrl
+      });
+    }
 
     // Now update the product's images array in the database
     // First, get the current product
