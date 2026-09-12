@@ -94,26 +94,31 @@ module.exports = async function handler(req, res) {
     // Deduct stock for each item using inventory function
     for (let item of items) {
       const { productId, qty, color, size } = item;
-      const { data: inv, error: invErr } = await supabase
+      let invQuery = supabase
         .from('inventory')
         .select('id, stock')
         .eq('product_id', productId)
-        .eq('color', color)
-        .eq('size', size)
-        .single();
-      if (invErr || !inv) {
-        return res.status(400).json({ error: `Inventory not found for product ${productId}` });
+        .eq('size', size);
+        
+      if (color) {
+        invQuery = invQuery.eq('color', color);
       }
-      try {
-        await supabase.rpc('deduct_stock', {
-          p_inventory_id: inv.id,
-          p_qty: qty,
-          p_order_id: o.orderId,
-          p_reason: 'Order placement'
-        });
-      } catch (e) {
-        const msg = e?.message || e?.data?.message || 'Insufficient stock';
-        return res.status(400).json({ error: msg });
+      
+      const { data: invList, error: invErr } = await invQuery;
+      
+      if (!invErr && invList && invList.length > 0) {
+        const inv = invList[0];
+        try {
+          await supabase.rpc('deduct_stock', {
+            p_inventory_id: inv.id,
+            p_qty: qty,
+            p_order_id: o.orderId,
+            p_reason: 'Order placement'
+          });
+        } catch (e) {
+          const msg = e?.message || e?.data?.message || 'Insufficient stock';
+          return res.status(400).json({ error: msg });
+        }
       }
     }
 
@@ -181,14 +186,19 @@ module.exports = async function handler(req, res) {
       const orderItems = typeof existingOrder.items === 'string' ? JSON.parse(existingOrder.items) : existingOrder.items;
       for (let item of orderItems) {
         const { productId, qty, color, size } = item;
-        const { data: inv, error: invErr } = await supabase
+        let invQuery = supabase
           .from('inventory')
           .select('id')
           .eq('product_id', productId)
-          .eq('color', color)
-          .eq('size', size)
-          .single();
-        if (inv && !invErr) {
+          .eq('size', size);
+          
+        if (color) {
+          invQuery = invQuery.eq('color', color);
+        }
+        
+        const { data: invList, error: invErr } = await invQuery;
+        if (invList && invList.length > 0 && !invErr) {
+          const inv = invList[0];
           try {
             await supabase.rpc('restore_stock', {
               p_inventory_id: inv.id,
