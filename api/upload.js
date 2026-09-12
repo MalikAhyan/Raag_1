@@ -1,10 +1,13 @@
 const supabase = require('./_supabase');
 
 module.exports = async function handler(req, res) {
-  // Set CORS headers
+  // Set CORS & Cache-Control headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -51,12 +54,13 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({ error: 'Storage upload failed: ' + uploadError.message });
     }
 
-    // Get public URL
+    // Get public URL with timestamp cache buster so all browsers fetch the new image immediately
     const { data: urlData } = supabase.storage
       .from('product-images')
       .getPublicUrl(fileName);
 
-    const publicUrl = urlData.publicUrl;
+    const baseUrl = (urlData.publicUrl || '').split('?')[0];
+    const publicUrl = `${baseUrl}?v=${Date.now()}`;
 
     // Now update the product's images array in the database
     // First, get the current product

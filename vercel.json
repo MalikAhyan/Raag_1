@@ -13,8 +13,24 @@
     { "src": "public/**/*", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/api/products", "dest": "/api/products.js" },
-    { "src": "/api/upload", "dest": "/api/upload.js" },
+    { 
+      "src": "/api/products", 
+      "dest": "/api/products.js",
+      "headers": {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+      }
+    },
+    { 
+      "src": "/api/upload", 
+      "dest": "/api/upload.js",
+      "headers": {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+      }
+    },
     { "src": "/api/orders", "dest": "/api/orders.js" },
     { "src": "/api/customers", "dest": "/api/customers.js" },
     { "src": "/api/promocodes", "dest": "/api/promocodes.js" },

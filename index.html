@@ -1234,9 +1234,9 @@ function loadProductsLocal() {
 }
 
 async function loadProducts() {
-  // First try API (works on Vercel)
+  // First try API with cache-busting timestamp (works on Vercel)
   try {
-    const res = await fetch('/api/products');
+    const res = await fetch('/api/products?t=' + Date.now(), { cache: 'no-store' });
     if (res.ok) {
       PRODUCTS = await res.json();
       saveProductsLocal(); // Sync localStorage with API data
@@ -1487,7 +1487,16 @@ function resolveProductImages(p) {
     }
   }
   if (!Array.isArray(raw)) return [];
-  return raw.filter(u => typeof u === "string" && u.trim().length > 0);
+  const list = raw.filter(u => typeof u === "string" && u.trim().length > 0);
+  
+  // Attach version timestamp to image URLs to bypass browser disk caching when updated
+  const version = p.updated_at ? new Date(p.updated_at).getTime() : null;
+  return list.map(url => {
+    if (!url || url.startsWith('data:')) return url;
+    if (url.includes('?v=')) return url;
+    if (version) return url.includes('?') ? `${url}&v=${version}` : `${url}?v=${version}`;
+    return url;
+  });
 }
 
 // Renders a real photo with a hidden glyph fallback right behind it.
@@ -3083,7 +3092,7 @@ async function confirmDeleteProduct() {
   closeDeleteProductModal();
   // Try to sync with database silently (only works on Vercel)
   try {
-    await fetch('/api/products?id=' + encodeURIComponent(productToDelete), { method: 'DELETE' });
+    await fetch('/api/products?id=' + encodeURIComponent(productToDelete), { method: 'DELETE', cache: 'no-store' });
   } catch(e) {}
   productToDelete = null;
 }
