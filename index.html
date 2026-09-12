@@ -1153,11 +1153,15 @@ let STORE_CONFIG = {
   instagramUrl: "https://instagram.com/raag__official",
   deliveryCharge: 250,
   currency: "Rs.",
-  deliveryTime: "2-4 Days"
+  deliveryTime: "2-4 Days",
+  aboutTitle: "Clothes built to hold their shape.",
+  aboutParagraph1: "RAAG started as a question: what does true quiet luxury feel like? Not logos. Not noise. Just fabric that's heavy enough to hold a line, and a fit precise enough that it doesn't need explaining.",
+  aboutParagraph2: "Every piece is designed in small runs. We'd rather make three things properly than ten things quickly. That's why the current collection is focused — built to be worn together or alone, for years rather than a season.",
+  aboutParagraph3: "We're based in Pakistan and we ship across the country. Cash on delivery, no fuss — just clean garments delivered to your doorstep."
 };
 try {
   const savedConfig = localStorage.getItem("raag_config");
-  if(savedConfig) STORE_CONFIG = JSON.parse(savedConfig);
+  if(savedConfig) STORE_CONFIG = { ...STORE_CONFIG, ...JSON.parse(savedConfig) };
 } catch(e){}
 
 function saveConfig() {
@@ -2265,17 +2269,23 @@ function render404Page(){
 }
 
 function renderAbout(){
+  const title = STORE_CONFIG.aboutTitle || "Clothes built to hold their shape.";
+  const p1 = STORE_CONFIG.aboutParagraph1 || "RAAG started as a question: what does true quiet luxury feel like? Not logos. Not noise. Just fabric that's heavy enough to hold a line, and a fit precise enough that it doesn't need explaining.";
+  const p2 = STORE_CONFIG.aboutParagraph2 || "Every piece is designed in small runs. We'd rather make three things properly than ten things quickly. That's why the current collection is focused — built to be worn together or alone, for years rather than a season.";
+  const p3 = STORE_CONFIG.aboutParagraph3 || "We're based in Pakistan and we ship across the country. Cash on delivery, no fuss — just clean garments delivered to your doorstep.";
+
   return `
   <section class="section container" style="max-width:760px;">
     <p class="t-label-mono eyebrow mb-sm">ABOUT RAAG</p>
-    <h1 class="t-headline-xl mb-lg">Clothes built to hold their shape.</h1>
-    <p class="t-body-lg text-secondary mb-md">RAAG started as a question: what does true quiet luxury feel like? Not logos. Not noise. Just fabric that's heavy enough to hold a line, and a fit precise enough that it doesn't need explaining.</p>
-    <p class="t-body-lg text-secondary mb-md">Every piece is designed in small runs. We'd rather make three things properly than ten things quickly. That's why the current collection is focused — built to be worn together or alone, for years rather than a season.</p>
-    <p class="t-body-lg text-secondary">We're based in Pakistan and we ship across the country. Cash on delivery, no fuss — just clean garments delivered to your doorstep.</p>
+    <h1 class="t-headline-xl mb-lg">${title}</h1>
+    <p class="t-body-lg text-secondary mb-md">${p1}</p>
+    <p class="t-body-lg text-secondary mb-md">${p2}</p>
+    <p class="t-body-lg text-secondary">${p3}</p>
   </section>
-  <section class="lookbook-grid container hairline-top" style="padding-top:var(--xxl);">
-    <div class="lookbook-block"><div style="width:38%; display:flex; justify-content:center; align-items:center; height:100%;">${GLYPHS.jacket}</div></div>
-    <div class="lookbook-block"><div style="width:38%; display:flex; justify-content:center; align-items:center; height:100%;">${GLYPHS.cargo}</div></div>
+  <section class="container hairline-top reveal-group" style="padding-top:var(--xxl);">
+    <div class="reveal" style="width:100%; aspect-ratio:16/9; background:#000; border:1px solid var(--border-subtle); overflow:hidden; position:relative;">
+      <video src="/vid.mp4" autoplay loop muted playsinline style="width:100%; height:100%; object-fit:contain; object-position:center; display:block; background:#000;"></video>
+    </div>
   </section>`;
 }
 
@@ -3631,13 +3641,22 @@ async function saveAdminAnnouncement() {
 
 function renderAdminSettings(){
   return `
-  <div class="admin-section-head"><h1 class="t-headline-lg">Settings</h1></div>
-  <div style="max-width:480px;">
+  <div class="admin-section-head"><h1 class="t-headline-lg">Settings &amp; About Page</h1></div>
+  <div style="max-width:600px; background:var(--bg-surface-elevated); padding:var(--lg); border:1px solid var(--border-subtle);">
+    <h3 class="t-headline-md mb-md" style="font-size:1.1rem;">Store Information</h3>
     <div class="field"><label>Store Name</label><input type="text" id="setStoreName" value="${STORE_CONFIG.name}"/></div>
     <div class="field"><label>WhatsApp Number</label><input type="text" id="setStoreWhatsApp" value="${STORE_CONFIG.whatsappDisplay}"/></div>
-    <div class="field"><label>Instagram</label><input type="text" id="setStoreInsta" value="${STORE_CONFIG.instagram}"/></div>
-    <div class="field"><label>Store Information</label><textarea>Contemporary clothing, made in limited runs. Cash on delivery across Pakistan.</textarea></div>
-    <button class="btn btn-primary" onclick="saveAdminSettings()">Save Settings</button>
+    <div class="field"><label>Instagram Handle</label><input type="text" id="setStoreInsta" value="${STORE_CONFIG.instagram}"/></div>
+    
+    <div style="border-top:1px solid var(--border-subtle); margin-top:var(--lg); padding-top:var(--lg);">
+      <h3 class="t-headline-md mb-md" style="font-size:1.1rem;">About Page Content</h3>
+      <div class="field"><label>About Headline</label><input type="text" id="setAboutTitle" value="${STORE_CONFIG.aboutTitle || 'Clothes built to hold their shape.'}"/></div>
+      <div class="field"><label>Paragraph 1</label><textarea id="setAboutP1" style="min-height:80px; font-family:inherit; font-size:0.85rem; padding:8px; border-radius:0;">${STORE_CONFIG.aboutParagraph1 || ''}</textarea></div>
+      <div class="field"><label>Paragraph 2</label><textarea id="setAboutP2" style="min-height:80px; font-family:inherit; font-size:0.85rem; padding:8px; border-radius:0;">${STORE_CONFIG.aboutParagraph2 || ''}</textarea></div>
+      <div class="field"><label>Paragraph 3</label><textarea id="setAboutP3" style="min-height:65px; font-family:inherit; font-size:0.85rem; padding:8px; border-radius:0;">${STORE_CONFIG.aboutParagraph3 || ''}</textarea></div>
+    </div>
+    
+    <button class="btn btn-primary mt-md" onclick="saveAdminSettings()">Save Settings</button>
   </div>`;
 }
 
@@ -3645,8 +3664,12 @@ function saveAdminSettings(){
   STORE_CONFIG.name = document.getElementById("setStoreName").value;
   STORE_CONFIG.whatsappDisplay = document.getElementById("setStoreWhatsApp").value;
   STORE_CONFIG.instagram = document.getElementById("setStoreInsta").value;
+  if(document.getElementById("setAboutTitle")) STORE_CONFIG.aboutTitle = document.getElementById("setAboutTitle").value;
+  if(document.getElementById("setAboutP1")) STORE_CONFIG.aboutParagraph1 = document.getElementById("setAboutP1").value;
+  if(document.getElementById("setAboutP2")) STORE_CONFIG.aboutParagraph2 = document.getElementById("setAboutP2").value;
+  if(document.getElementById("setAboutP3")) STORE_CONFIG.aboutParagraph3 = document.getElementById("setAboutP3").value;
   saveConfig();
-  showToast("Settings saved locally");
+  showToast("Settings & About page saved");
   render();
 }
 
