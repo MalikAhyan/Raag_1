@@ -2759,20 +2759,17 @@ function renderAdminDashboard(){
   `;
 }
 
-function adminOrdersTable(orders){
 /* ============================================================
-   INVENTORY UI
+   INVENTORY ADMIN UI
    ============================================================ */
 let INVENTORY_DATA = [];
 
 async function renderAdminInventory(){
-  // Fetch all inventory
   try {
     const r = await fetch('/api/inventory');
     if(r.ok) INVENTORY_DATA = await r.json();
   } catch(e){ INVENTORY_DATA = []; }
 
-  // Dashboard stats
   let totalUnits=0, lowStockCount=0, outCount=0;
   INVENTORY_DATA.forEach(i=>{
     totalUnits += i.stock;
@@ -2780,7 +2777,6 @@ async function renderAdminInventory(){
     else if(i.stock <= (i.low_stock_threshold||5)) lowStockCount++;
   });
 
-  // Group by product for bulk grid
   const byProduct = {};
   INVENTORY_DATA.forEach(i=>{
     if(!byProduct[i.product_id]) byProduct[i.product_id] = [];
@@ -2792,7 +2788,7 @@ async function renderAdminInventory(){
 
   const filterBar = `
   <div style="display:flex;flex-wrap:wrap;gap:var(--sm);margin-bottom:var(--lg);align-items:center;">
-    <input id="invSearch" type="text" placeholder="Search SKU / product / color / size…"
+    <input id="invSearch" type="text" placeholder="Search SKU / product / color / size..."
       style="padding:8px 12px;background:var(--bg-surface-elevated);border:1px solid var(--border-subtle);color:var(--text-primary);flex:1;min-width:200px;font-family:var(--font-body);font-size:0.8rem;"
       oninput="filterInventoryTable()">
     <select id="invStatus" onchange="filterInventoryTable()"
@@ -2805,56 +2801,47 @@ async function renderAdminInventory(){
   </div>`;
 
   const tableRows = INVENTORY_DATA.map(i=>{
-    const status = i.stock === 0 ? 'Out of Stock' : i.stock <= (i.low_stock_threshold||5) ? 'Low Stock' : 'In Stock';
-    const statusColor = i.stock===0?'#ff3b30': i.stock<=(i.low_stock_threshold||5)?'#ffb020':'#34c759';
-    const pname = productNames[i.product_id] || i.product_id;
+    const s = i.stock===0?'out_of_stock':i.stock<=(i.low_stock_threshold||5)?'low_stock':'in_stock';
+    const label = i.stock===0?'Out of Stock':i.stock<=(i.low_stock_threshold||5)?'Low Stock':'In Stock';
+    const color = i.stock===0?'#ff3b30':i.stock<=(i.low_stock_threshold||5)?'#ffb020':'#34c759';
+    const pname = productNames[i.product_id]||i.product_id;
     return `<tr class="inv-row"
       data-product="${pname.toLowerCase()}"
       data-sku="${(i.sku||'').toLowerCase()}"
       data-color="${(i.color||'').toLowerCase()}"
       data-size="${(i.size||'').toLowerCase()}"
-      data-status="${i.stock===0?'out_of_stock':i.stock<=(i.low_stock_threshold||5)?'low_stock':'in_stock'}">
-      <td>${pname}</td>
-      <td>${i.color}</td>
-      <td>${i.size}</td>
+      data-status="${s}">
+      <td>${pname}</td><td>${i.color}</td><td>${i.size}</td>
       <td class="t-label-mono">${i.sku}</td>
       <td class="t-label-mono" id="inv-stock-${i.id}">${i.stock}</td>
-      <td><span style="color:${statusColor};font-family:var(--font-mono);font-size:0.7rem;">${status}</span></td>
+      <td><span style="color:${color};font-family:var(--font-mono);font-size:0.7rem;">${label}</span></td>
       <td style="white-space:nowrap;">
         <button onclick="openAdjustModal('${i.id}','${pname}','${i.color}','${i.size}',${i.stock})"
-          style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:0.06em;text-transform:uppercase;padding:4px 10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);cursor:pointer;margin-right:6px;">
-          Adjust
-        </button>
+          style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:0.06em;text-transform:uppercase;padding:4px 10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);cursor:pointer;margin-right:6px;">Adjust</button>
         <button onclick="openHistoryModal('${i.id}','${pname}','${i.color}','${i.size}')"
-          style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:0.06em;text-transform:uppercase;padding:4px 10px;background:none;border:1px solid var(--border-subtle);color:var(--text-tertiary);cursor:pointer;">
-          History
-        </button>
+          style="font-family:var(--font-mono);font-size:0.65rem;letter-spacing:0.06em;text-transform:uppercase;padding:4px 10px;background:none;border:1px solid var(--border-subtle);color:var(--text-tertiary);cursor:pointer;">History</button>
       </td>
     </tr>`;
   }).join('');
 
-  // Bulk grid per product
   const bulkGrids = Object.keys(byProduct).map(pid=>{
     const rows = byProduct[pid];
-    const pname = productNames[pid] || pid;
+    const pname = productNames[pid]||pid;
     const colors = [...new Set(rows.map(r=>r.color))];
     const sizes  = [...new Set(rows.map(r=>r.size))];
     const thead = `<tr><th>Color</th>${sizes.map(s=>`<th>${s}</th>`).join('')}</tr>`;
     const tbody = colors.map(col=>{
       const cells = sizes.map(sz=>{
         const item = rows.find(r=>r.color===col&&r.size===sz);
-        if(!item) return `<td style="color:var(--text-tertiary);">—</td>`;
-        const color = item.stock===0?'#ff3b30':item.stock<=(item.low_stock_threshold||5)?'#ffb020':'inherit';
-        return `<td>
-          <input type="number" min="0" value="${item.stock}"
-            style="width:56px;text-align:center;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:${color};font-family:var(--font-mono);font-size:0.75rem;padding:3px;"
-            onchange="bulkSetStock('${item.id}',this.value,this)">
-        </td>`;
+        if(!item) return `<td style="color:var(--text-tertiary);">-</td>`;
+        const c = item.stock===0?'#ff3b30':item.stock<=(item.low_stock_threshold||5)?'#ffb020':'inherit';
+        return `<td><input type="number" min="0" value="${item.stock}"
+          style="width:56px;text-align:center;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:${c};font-family:var(--font-mono);font-size:0.75rem;padding:3px;"
+          onchange="bulkSetStock('${item.id}',this.value,this)"></td>`;
       }).join('');
       return `<tr><td style="font-weight:500;">${col}</td>${cells}</tr>`;
     }).join('');
-    return `
-    <div style="margin-bottom:var(--xl);">
+    return `<div style="margin-bottom:var(--xl);">
       <p class="t-label-caps text-secondary" style="margin-bottom:var(--sm);">${pname}</p>
       <div class="admin-table-wrap"><table class="admin-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
     </div>`;
@@ -2871,47 +2858,44 @@ async function renderAdminInventory(){
     <div class="admin-stat-card"><p class="t-label-mono text-tertiary">Out of Stock</p><p class="admin-stat-value" style="color:#ff3b30;">${outCount}</p></div>
     <div class="admin-stat-card"><p class="t-label-mono text-tertiary">Total Variants</p><p class="admin-stat-value">${INVENTORY_DATA.length}</p></div>
   </div>
-
   <p class="t-label-caps text-secondary" style="margin-bottom:var(--md);">All Variants</p>
   ${filterBar}
-  <div class="admin-table-wrap" id="invTableWrap">
-    <table class="admin-table" id="invTable">
-      <thead><tr><th>Product</th><th>Color</th><th>Size</th><th>SKU</th><th>Stock</th><th>Status</th><th></th></tr></thead>
-      <tbody id="invTbody">${tableRows}</tbody>
-    </table>
-  </div>
+  <div class="admin-table-wrap"><table class="admin-table">
+    <thead><tr><th>Product</th><th>Color</th><th>Size</th><th>SKU</th><th>Stock</th><th>Status</th><th></th></tr></thead>
+    <tbody id="invTbody">${tableRows || '<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary);padding:var(--xl);">No inventory records yet. Click &ldquo;+ Add Variant&rdquo; to begin.</td></tr>'}</tbody>
+  </table></div>
 
   <div style="margin-top:var(--xxl);">
     <p class="t-label-caps text-secondary" style="margin-bottom:var(--lg);">Bulk Stock View / Quick Edit</p>
-    ${bulkGrids || '<p class="text-tertiary t-body-sm">No inventory records yet. Add variants to begin.</p>'}
+    ${bulkGrids||'<p class="text-tertiary t-body-sm">No inventory records yet.</p>'}
   </div>
 
   <!-- Adjust Stock Modal -->
-  <div id="adjustModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9000;align-items:center;justify-content:center;">
+  <div id="adjustModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;align-items:center;justify-content:center;">
     <div class="admin-modal" style="background:var(--bg-surface-elevated);border:1px solid var(--border-subtle);padding:var(--xl);width:min(420px,95vw);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--lg);">
-        <h2 class="t-headline-sm" id="adjustTitle">Adjust Stock</h2>
-        <button onclick="document.getElementById('adjustModal').style.display='none'" style="background:none;border:none;color:var(--text-tertiary);font-size:1.2rem;cursor:pointer;">✕</button>
+        <h2 class="t-headline-sm">Adjust Stock</h2>
+        <button onclick="document.getElementById('adjustModal').style.display='none'" style="background:none;border:none;color:var(--text-tertiary);font-size:1.3rem;cursor:pointer;">x</button>
       </div>
       <p class="t-body-sm text-secondary" id="adjustSubtitle" style="margin-bottom:var(--lg);"></p>
-      <p class="t-label-mono text-tertiary" style="margin-bottom:var(--sm);">Current Stock: <span id="adjustCurrent" style="color:var(--text-primary);"></span></p>
+      <p class="t-label-mono text-tertiary" style="margin-bottom:var(--sm);">Current Stock: <span id="adjustCurrent" style="color:var(--text-primary);font-weight:600;"></span></p>
       <div style="margin-bottom:var(--md);">
         <label class="t-label-caps text-secondary" style="display:block;margin-bottom:var(--xs);">Action</label>
         <select id="adjustAction" style="width:100%;padding:10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);font-family:var(--font-mono);font-size:0.75rem;">
           <option value="increase">Increase (+)</option>
-          <option value="decrease">Decrease (−)</option>
+          <option value="decrease">Decrease (-)</option>
           <option value="set">Set Exact</option>
         </select>
       </div>
       <div style="margin-bottom:var(--md);">
         <label class="t-label-caps text-secondary" style="display:block;margin-bottom:var(--xs);">Quantity</label>
         <input type="number" id="adjustQty" min="0" value="0"
-          style="width:100%;padding:10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);font-family:var(--font-mono);font-size:0.85rem;">
+          style="width:100%;padding:10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);font-family:var(--font-mono);font-size:0.85rem;box-sizing:border-box;">
       </div>
       <div style="margin-bottom:var(--lg);">
         <label class="t-label-caps text-secondary" style="display:block;margin-bottom:var(--xs);">Reason</label>
-        <input type="text" id="adjustReason" placeholder="e.g. Restock, Damage, Correction"
-          style="width:100%;padding:10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);font-family:var(--font-body);font-size:0.8rem;">
+        <input type="text" id="adjustReason" placeholder="e.g. Restock, Damage, Manual correction"
+          style="width:100%;padding:10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);font-family:var(--font-body);font-size:0.8rem;box-sizing:border-box;">
       </div>
       <button onclick="submitAdjust()" class="btn btn-primary" style="width:100%;">Apply Change</button>
       <p id="adjustError" style="color:#ff3b30;font-size:0.75rem;margin-top:var(--sm);display:none;"></p>
@@ -2919,22 +2903,22 @@ async function renderAdminInventory(){
   </div>
 
   <!-- History Modal -->
-  <div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9000;align-items:center;justify-content:center;">
-    <div class="admin-modal" style="background:var(--bg-surface-elevated);border:1px solid var(--border-subtle);padding:var(--xl);width:min(600px,95vw);max-height:80vh;overflow-y:auto;">
+  <div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;align-items:center;justify-content:center;">
+    <div class="admin-modal" style="background:var(--bg-surface-elevated);border:1px solid var(--border-subtle);padding:var(--xl);width:min(640px,95vw);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--lg);">
         <h2 class="t-headline-sm" id="historyTitle">Stock History</h2>
-        <button onclick="document.getElementById('historyModal').style.display='none'" style="background:none;border:none;color:var(--text-tertiary);font-size:1.2rem;cursor:pointer;">✕</button>
+        <button onclick="document.getElementById('historyModal').style.display='none'" style="background:none;border:none;color:var(--text-tertiary);font-size:1.3rem;cursor:pointer;">x</button>
       </div>
-      <div id="historyContent"><p class="text-tertiary t-body-sm">Loading…</p></div>
+      <div id="historyContent"><p class="text-tertiary t-body-sm">Loading...</p></div>
     </div>
   </div>
 
   <!-- Add Variant Modal -->
-  <div id="addVariantModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9000;align-items:center;justify-content:center;">
+  <div id="addVariantModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;align-items:center;justify-content:center;">
     <div class="admin-modal" style="background:var(--bg-surface-elevated);border:1px solid var(--border-subtle);padding:var(--xl);width:min(440px,95vw);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--lg);">
         <h2 class="t-headline-sm">Add Inventory Variant</h2>
-        <button onclick="document.getElementById('addVariantModal').style.display='none'" style="background:none;border:none;color:var(--text-tertiary);font-size:1.2rem;cursor:pointer;">✕</button>
+        <button onclick="document.getElementById('addVariantModal').style.display='none'" style="background:none;border:none;color:var(--text-tertiary);font-size:1.3rem;cursor:pointer;">x</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:var(--md);">
         <div>
@@ -2946,25 +2930,25 @@ async function renderAdminInventory(){
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--md);">
           <div>
             <label class="t-label-caps text-secondary" style="display:block;margin-bottom:var(--xs);">Color</label>
-            <input type="text" id="avColor" placeholder="e.g. Black" style="width:100%;padding:10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);font-family:var(--font-body);font-size:0.8rem;">
+            <input type="text" id="avColor" placeholder="e.g. Black" style="width:100%;padding:10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);font-size:0.8rem;box-sizing:border-box;">
           </div>
           <div>
             <label class="t-label-caps text-secondary" style="display:block;margin-bottom:var(--xs);">Size</label>
-            <input type="text" id="avSize" placeholder="e.g. M" style="width:100%;padding:10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);font-family:var(--font-body);font-size:0.8rem;">
+            <input type="text" id="avSize" placeholder="e.g. M" style="width:100%;padding:10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);font-size:0.8rem;box-sizing:border-box;">
           </div>
         </div>
         <div>
           <label class="t-label-caps text-secondary" style="display:block;margin-bottom:var(--xs);">SKU</label>
-          <input type="text" id="avSku" placeholder="e.g. PROD-BLK-M" style="width:100%;padding:10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);font-family:var(--font-mono);font-size:0.8rem;">
+          <input type="text" id="avSku" placeholder="e.g. PROD-BLK-M" style="width:100%;padding:10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);font-family:var(--font-mono);font-size:0.8rem;box-sizing:border-box;">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--md);">
           <div>
             <label class="t-label-caps text-secondary" style="display:block;margin-bottom:var(--xs);">Initial Stock</label>
-            <input type="number" id="avStock" min="0" value="0" style="width:100%;padding:10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);font-family:var(--font-mono);font-size:0.8rem;">
+            <input type="number" id="avStock" min="0" value="0" style="width:100%;padding:10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);font-family:var(--font-mono);font-size:0.8rem;box-sizing:border-box;">
           </div>
           <div>
             <label class="t-label-caps text-secondary" style="display:block;margin-bottom:var(--xs);">Low Stock Threshold</label>
-            <input type="number" id="avThreshold" min="1" value="5" style="width:100%;padding:10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);font-family:var(--font-mono);font-size:0.8rem;">
+            <input type="number" id="avThreshold" min="1" value="5" style="width:100%;padding:10px;background:var(--bg-canvas);border:1px solid var(--border-subtle);color:var(--text-primary);font-family:var(--font-mono);font-size:0.8rem;box-sizing:border-box;">
           </div>
         </div>
         <button onclick="submitAddVariant()" class="btn btn-primary">Save Variant</button>
@@ -2974,92 +2958,88 @@ async function renderAdminInventory(){
   </div>`;
 }
 
-// ---- Inventory helper JS functions ----
 let _adjustingId = null;
 
 function filterInventoryTable(){
-  const q = (document.getElementById('invSearch').value||'').toLowerCase();
-  const st = document.getElementById('invStatus').value;
+  const q = (document.getElementById('invSearch')||{value:''}).value.toLowerCase();
+  const st = (document.getElementById('invStatus')||{value:''}).value;
   document.querySelectorAll('#invTbody .inv-row').forEach(row=>{
-    const matchQ = !q || row.dataset.product.includes(q)||row.dataset.sku.includes(q)||row.dataset.color.includes(q)||row.dataset.size.includes(q);
-    const matchS = !st || row.dataset.status === st;
-    row.style.display = matchQ && matchS ? '' : 'none';
+    const matchQ = !q||row.dataset.product.includes(q)||row.dataset.sku.includes(q)||row.dataset.color.includes(q)||row.dataset.size.includes(q);
+    const matchS = !st||row.dataset.status===st;
+    row.style.display = matchQ&&matchS?'':'none';
   });
 }
 
-function openAdjustModal(id, pname, color, size, stock){
-  _adjustingId = id;
-  document.getElementById('adjustTitle').textContent = 'Adjust Stock';
-  document.getElementById('adjustSubtitle').textContent = `${pname} — ${color} / ${size}`;
-  document.getElementById('adjustCurrent').textContent = stock;
-  document.getElementById('adjustQty').value = 0;
-  document.getElementById('adjustAction').value = 'increase';
-  document.getElementById('adjustReason').value = '';
-  document.getElementById('adjustError').style.display = 'none';
-  document.getElementById('adjustModal').style.display = 'flex';
+function openAdjustModal(id,pname,color,size,stock){
+  _adjustingId=id;
+  document.getElementById('adjustSubtitle').textContent=`${pname} — ${color} / ${size}`;
+  document.getElementById('adjustCurrent').textContent=stock;
+  document.getElementById('adjustQty').value=0;
+  document.getElementById('adjustAction').value='increase';
+  document.getElementById('adjustReason').value='';
+  document.getElementById('adjustError').style.display='none';
+  document.getElementById('adjustModal').style.display='flex';
 }
 
 async function submitAdjust(){
-  const id      = _adjustingId;
-  const action  = document.getElementById('adjustAction').value;
-  const qty     = parseInt(document.getElementById('adjustQty').value, 10);
-  const reason  = document.getElementById('adjustReason').value.trim();
-  const errEl   = document.getElementById('adjustError');
-  errEl.style.display = 'none';
-  if(isNaN(qty)||qty<0){ errEl.textContent='Invalid quantity'; errEl.style.display='block'; return; }
-  try {
-    const r = await fetch('/api/inventory', { method:'PUT', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ id, action, quantity: qty, reason }) });
-    const d = await r.json();
-    if(!r.ok){ errEl.textContent = d.error||'Error'; errEl.style.display='block'; return; }
-    const updated = Array.isArray(d) ? d[0] : d;
-    const stockEl = document.getElementById(`inv-stock-${id}`);
-    if(stockEl) stockEl.textContent = updated.stock;
-    showToast(`Stock updated → ${updated.stock}`);
+  const id=_adjustingId;
+  const action=document.getElementById('adjustAction').value;
+  const qty=parseInt(document.getElementById('adjustQty').value,10);
+  const reason=document.getElementById('adjustReason').value.trim();
+  const errEl=document.getElementById('adjustError');
+  errEl.style.display='none';
+  if(isNaN(qty)||qty<0){errEl.textContent='Invalid quantity';errEl.style.display='block';return;}
+  try{
+    const r=await fetch('/api/inventory',{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id,action,quantity:qty,reason})});
+    const d=await r.json();
+    if(!r.ok){errEl.textContent=d.error||'Error';errEl.style.display='block';return;}
+    const updated=Array.isArray(d)?d[0]:d;
+    const el=document.getElementById('inv-stock-'+id);
+    if(el) el.textContent=updated.stock;
+    showToast('Stock updated to '+updated.stock);
     document.getElementById('adjustModal').style.display='none';
-  } catch(e){ errEl.textContent='Network error'; errEl.style.display='block'; }
+  }catch(e){errEl.textContent='Network error';errEl.style.display='block';}
 }
 
-async function bulkSetStock(id, value, inputEl){
-  const qty = parseInt(value, 10);
-  if(isNaN(qty)||qty<0){ showToast('Invalid quantity'); return; }
-  try {
-    const r = await fetch('/api/inventory', { method:'PUT', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ id, action:'set', quantity: qty, reason:'Bulk edit' }) });
-    if(r.ok){ showToast('Stock updated'); inputEl.style.color='inherit'; }
-    else { const d=await r.json(); showToast(d.error||'Error'); }
-  } catch(e){ showToast('Network error'); }
+async function bulkSetStock(id,value,inputEl){
+  const qty=parseInt(value,10);
+  if(isNaN(qty)||qty<0){showToast('Invalid quantity');return;}
+  try{
+    const r=await fetch('/api/inventory',{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id,action:'set',quantity:qty,reason:'Bulk edit'})});
+    if(r.ok) showToast('Stock updated');
+    else{const d=await r.json();showToast(d.error||'Error');}
+  }catch(e){showToast('Network error');}
 }
 
-async function openHistoryModal(id, pname, color, size){
-  document.getElementById('historyTitle').textContent = `History — ${pname} ${color}/${size}`;
-  document.getElementById('historyContent').innerHTML = '<p class="text-tertiary t-body-sm">Loading…</p>';
-  document.getElementById('historyModal').style.display = 'flex';
-  try {
-    const r = await fetch(`/api/inventory?history_id=${id}`);
+async function openHistoryModal(id,pname,color,size){
+  document.getElementById('historyTitle').textContent=`History - ${pname} ${color}/${size}`;
+  document.getElementById('historyContent').innerHTML='<p class="text-tertiary t-body-sm">Loading...</p>';
+  document.getElementById('historyModal').style.display='flex';
+  try{
+    const r=await fetch(`/api/inventory?history_id=${id}`);
     if(!r.ok) throw new Error();
-    const moves = await r.json();
-    if(!moves.length){ document.getElementById('historyContent').innerHTML='<p class="text-tertiary t-body-sm">No history yet.</p>'; return; }
-    const rows = moves.map(m=>{
-      const sign = m.change_quantity >= 0 ? '+' : '';
-      const color = m.change_quantity >= 0 ? '#34c759' : '#ff3b30';
-      const date = new Date(m.created_at).toLocaleString('en-GB');
+    const moves=await r.json();
+    if(!moves.length){document.getElementById('historyContent').innerHTML='<p class="text-tertiary t-body-sm">No history yet.</p>';return;}
+    const rows=moves.map(m=>{
+      const sign=m.change_quantity>=0?'+':'';
+      const c=m.change_quantity>=0?'#34c759':'#ff3b30';
+      const date=new Date(m.created_at).toLocaleString('en-GB');
       return `<tr>
-        <td class="t-label-mono" style="color:${color};font-size:0.85rem;">${sign}${m.change_quantity}</td>
+        <td class="t-label-mono" style="color:${c};">${sign}${m.change_quantity}</td>
         <td style="text-transform:capitalize;">${m.change_type}</td>
-        <td>${m.reason||'—'}</td>
-        <td class="t-label-mono" style="font-size:0.7rem;color:var(--text-tertiary);">${m.related_order_id||'—'}</td>
+        <td>${m.reason||'-'}</td>
+        <td class="t-label-mono" style="font-size:0.7rem;color:var(--text-tertiary);">${m.related_order_id||'-'}</td>
         <td style="font-size:0.72rem;color:var(--text-tertiary);">${date}</td>
       </tr>`;
     }).join('');
-    document.getElementById('historyContent').innerHTML = `
-      <div class="admin-table-wrap">
-        <table class="admin-table">
-          <thead><tr><th>Change</th><th>Type</th><th>Reason</th><th>Order</th><th>Date</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
-  } catch(e){ document.getElementById('historyContent').innerHTML='<p style="color:#ff3b30;font-size:0.8rem;">Error loading history.</p>'; }
+    document.getElementById('historyContent').innerHTML=`
+      <div class="admin-table-wrap"><table class="admin-table">
+        <thead><tr><th>Change</th><th>Type</th><th>Reason</th><th>Order</th><th>Date</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+  }catch(e){document.getElementById('historyContent').innerHTML='<p style="color:#ff3b30;font-size:0.8rem;">Error loading history.</p>';}
 }
 
 function openAddVariantModal(){
@@ -3068,28 +3048,26 @@ function openAddVariantModal(){
 }
 
 async function submitAddVariant(){
-  const productId = document.getElementById('avProduct').value;
-  const color = document.getElementById('avColor').value.trim();
-  const size  = document.getElementById('avSize').value.trim();
-  const sku   = document.getElementById('avSku').value.trim();
-  const stock = parseInt(document.getElementById('avStock').value,10)||0;
-  const low   = parseInt(document.getElementById('avThreshold').value,10)||5;
-  const errEl = document.getElementById('avError');
+  const productId=document.getElementById('avProduct').value;
+  const color=document.getElementById('avColor').value.trim();
+  const size=document.getElementById('avSize').value.trim();
+  const sku=document.getElementById('avSku').value.trim();
+  const stock=parseInt(document.getElementById('avStock').value,10)||0;
+  const low=parseInt(document.getElementById('avThreshold').value,10)||5;
+  const errEl=document.getElementById('avError');
   errEl.style.display='none';
-  if(!color||!size||!sku){ errEl.textContent='Color, Size, and SKU are required.'; errEl.style.display='block'; return; }
-  try {
-    const r = await fetch('/api/inventory', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ productId, sku, color, size, stock, lowStockThreshold: low }) });
-    const d = await r.json();
-    if(!r.ok){ errEl.textContent=d.error||'Error'; errEl.style.display='block'; return; }
+  if(!color||!size||!sku){errEl.textContent='Color, Size, and SKU are required.';errEl.style.display='block';return;}
+  try{
+    const r=await fetch('/api/inventory',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({productId,sku,color,size,stock,lowStockThreshold:low})});
+    const d=await r.json();
+    if(!r.ok){errEl.textContent=d.error||'Error';errEl.style.display='block';return;}
     showToast('Variant added to inventory');
     document.getElementById('addVariantModal').style.display='none';
-    // Refresh inventory tab
     window.location.hash='#/admin/inventory';
-  } catch(e){ errEl.textContent='Network error'; errEl.style.display='block'; }
+  }catch(e){errEl.textContent='Network error';errEl.style.display='block';}
 }
 /* ============================================================ */
-
 
 function adminOrdersTable(orders){
   const rows = orders.map(o=>{
