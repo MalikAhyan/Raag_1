@@ -3143,7 +3143,13 @@ function exportOrdersToExcel(){
     "Address": o.address,
     "City": o.city,
     "Province": o.province,
-    "Items": Array.isArray(o.items) ? o.items.map(i=>i.productId+' x'+i.qty).join(', ') : (o.items || ""),
+    "Items": Array.isArray(o.items) ? o.items.map(i=>{
+      const pr = getProduct(i.productId);
+      const name = pr ? pr.name : i.productId;
+      const color = i.color ? ` (${i.color})` : '';
+      const size = i.size ? ` - ${i.size}` : '';
+      return `${name}${color}${size} x${i.qty}`;
+    }).join(', ') : (o.items || ""),
     "Total": o.total,
     "Payment Method": o.paymentMethod || "Cash on Delivery",
     "Status": o.status,
