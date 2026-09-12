@@ -51,6 +51,7 @@
     { "src": "/hero.jpg", "dest": "/hero.jpg" },
     { "src": "/hero_1.png", "dest": "/hero_1.png" },
     { "src": "/logo.png", "dest": "/logo.png" },
+    { "src": "/favicon.ico", "dest": "/logo.png" },
     { "src": "/vid.mp4", "dest": "/vid.mp4" },
     { "src": "/public/(.*)", "dest": "/public/$1" },
     { "src": "/(.*)", "dest": "/index.html" }
