@@ -52,6 +52,8 @@
         "Expires": "0"
       }
     },
+    { "src": "/api/inventory", "dest": "/api/inventory.js" },
+    { "src": "/api/inventory/(.*)", "dest": "/api/inventory.js" },
     { "src": "/api/auth", "dest": "/api/auth.js" },
     { "src": "/robots.txt", "dest": "/robots.txt" },
     { "src": "/sitemap.xml", "dest": "/sitemap.xml" },
