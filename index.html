@@ -2963,9 +2963,15 @@ function openAdminProductModal(id = null){
         <div style="border-top:1px solid var(--border-subtle); padding-top:var(--md); margin-top:var(--sm);">
           <label style="display:block; margin-bottom:var(--sm); font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.06em;">Product Images</label>
           <div id="adminProdImagePreview" style="display:flex; gap:var(--sm); margin-bottom:var(--sm);"></div>
-          <div class="field-row">
-            <div class="field"><label>Front Image</label><input type="file" id="adminProdFrontImg" accept="image/*" style="padding:4px; background:var(--bg-surface-field); border:1px solid var(--border-subtle);" /></div>
-            <div class="field"><label>Back Image</label><input type="file" id="adminProdBackImg" accept="image/*" style="padding:4px; background:var(--bg-surface-field); border:1px solid var(--border-subtle);" /></div>
+          <div style="display:flex; flex-direction:column; gap:var(--sm);">
+            <div class="field" style="margin:0;">
+              <label>Front Image</label>
+              <input type="file" id="adminProdFrontImg" accept="image/*" style="padding:6px; background:var(--bg-surface-field); border:1px solid var(--border-subtle); width:100%; font-size:0.85rem;" />
+            </div>
+            <div class="field" style="margin:0;">
+              <label>Back Image</label>
+              <input type="file" id="adminProdBackImg" accept="image/*" style="padding:6px; background:var(--bg-surface-field); border:1px solid var(--border-subtle); width:100%; font-size:0.85rem;" />
+            </div>
           </div>
           <div id="adminImageUploadStatus" style="font-size:0.75rem; color:var(--text-tertiary); margin-top:4px;"></div>
         </div>
@@ -3001,8 +3007,10 @@ function openAdminProductModal(id = null){
     const previewEl = document.getElementById("adminProdImagePreview");
     if (imgs.length > 0) {
       previewEl.innerHTML = imgs.map((url, i) =>
-        `<div style="width:80px; height:100px; background:var(--bg-surface-field); border:1px solid var(--border-subtle); overflow:hidden;">
+        `<div style="position:relative; width:80px; height:100px; background:var(--bg-surface-field); border:1px solid var(--border-subtle); overflow:hidden; flex-shrink:0;">
           <img src="${url}" style="width:100%; height:100%; object-fit:cover;" onerror="this.parentElement.innerHTML='<span style=\\'font-size:0.6rem; color:var(--text-tertiary); display:flex; align-items:center; justify-content:center; height:100%;\\'>No img</span>'" />
+          <button onclick="deleteProductImage('${id}', ${i})" title="Delete image" style="position:absolute; top:3px; right:3px; width:22px; height:22px; background:rgba(0,0,0,0.75); border:1px solid rgba(255,59,48,0.7); color:#ff3b30; font-size:14px; line-height:1; display:flex; align-items:center; justify-content:center; cursor:pointer; border-radius:0; padding:0; font-family:inherit; -webkit-tap-highlight-color:transparent;">&#x2715;</button>
+          <span style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); font-size:0.5rem; text-align:center; padding:2px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.06em;">${i === 0 ? 'Front' : 'Back'}</span>
         </div>`
       ).join('');
     } else {
@@ -3226,6 +3234,42 @@ async function saveAdminProduct(){
   render();
   showToast(isEdit ? "Product updated" : "Product added");
   if (saveBtn) saveBtn.disabled = false;
+}
+
+// Delete a specific product image by slot index
+async function deleteProductImage(productId, slot) {
+  if (!confirm(`Delete this ${slot === 0 ? 'front' : 'back'} image?`)) return;
+  const p = getProduct(productId);
+  if (!p) return;
+
+  // Remove from local array
+  if (Array.isArray(p.images) && p.images[slot] !== undefined) {
+    p.images.splice(slot, 1);
+  }
+  saveProductsLocal();
+
+  // Try to delete from server (silently)
+  try {
+    await fetch('/api/upload?productId=' + encodeURIComponent(productId) + '&slot=' + slot, { method: 'DELETE' });
+  } catch(e) {}
+
+  // Refresh preview inside open modal
+  const previewEl = document.getElementById("adminProdImagePreview");
+  if (previewEl) {
+    const imgs = resolveProductImages(p);
+    if (imgs.length > 0) {
+      previewEl.innerHTML = imgs.map((url, i) =>
+        `<div style="position:relative; width:80px; height:100px; background:var(--bg-surface-field); border:1px solid var(--border-subtle); overflow:hidden; flex-shrink:0;">
+          <img src="${url}" style="width:100%; height:100%; object-fit:cover;" />
+          <button onclick="deleteProductImage('${productId}', ${i})" title="Delete image" style="position:absolute; top:3px; right:3px; width:22px; height:22px; background:rgba(0,0,0,0.75); border:1px solid rgba(255,59,48,0.7); color:#ff3b30; font-size:14px; line-height:1; display:flex; align-items:center; justify-content:center; cursor:pointer; border-radius:0; padding:0; font-family:inherit; -webkit-tap-highlight-color:transparent;">&#x2715;</button>
+          <span style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); font-size:0.5rem; text-align:center; padding:2px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.06em;">${i === 0 ? 'Front' : 'Back'}</span>
+        </div>`
+      ).join('');
+    } else {
+      previewEl.innerHTML = '<span style="font-size:0.75rem; color:var(--text-tertiary);">No images uploaded yet</span>';
+    }
+  }
+  showToast("Image removed");
 }
 
 // Compress image for admin upload
