@@ -3366,11 +3366,12 @@ async function deleteCustomer(id) {
 }
 
 function renderAdminCommunity() {
+  const hasLocalOnly = MOCK_COMMUNITY.some(c => c.imageUrl && c.imageUrl.startsWith('data:'));
   return `
   <div class="admin-section-head">
     <div>
       <h1 class="t-headline-lg">Instagram Feed / Community Posts</h1>
-      <p class="t-body-sm text-tertiary" style="margin-top:4px;">Manage photos displayed in the "Follow @${(STORE_CONFIG.instagram||'raag').replace('@','')}" grid on the home page.</p>
+      <p class="t-body-sm text-tertiary" style="margin-top:4px;">Manage photos displayed in the "Follow @${(STORE_CONFIG.instagram||'raag').replace('@','')}\" grid on the home page.</p>
     </div>
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
       <button class="btn btn-secondary" onclick="addCommunityUrlPhoto()">Add Image URL</button>
@@ -3378,10 +3379,21 @@ function renderAdminCommunity() {
       <input type="file" id="communityUpload" accept="image/*" style="display:none" onchange="handleCommunityUpload(event)" />
     </div>
   </div>
+  ${hasLocalOnly ? `
+  <div style="background:#7c2d12; border:1px solid #ef4444; padding:16px 20px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+    <div>
+      <p style="color:#fca5a5; font-weight:600; margin:0 0 4px;">⚠️ Some photos are stored locally only (not visible on mobile)</p>
+      <p style="color:#fecaca; font-size:0.8rem; margin:0;">Photos marked "LOCAL ONLY" below are base64 images saved only on this browser. Delete them and re-upload so they sync to all devices.</p>
+    </div>
+    <button class="btn btn-primary" onclick="migrateLocalCommunityPhotos()" style="background:#ef4444; flex-shrink:0;">Re-upload Local Photos to Cloud</button>
+  </div>` : ''}
   <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--md);">
     ${MOCK_COMMUNITY.map(c => `
       <div style="border: 1px solid var(--border-subtle); padding: var(--sm); background: var(--bg-surface-elevated); display:flex; flex-direction:column;">
-        <img src="${c.imageUrl}" style="width: 100%; aspect-ratio: 1; object-fit: contain; object-position: center; background: #0a0a0a;" onerror="this.src='hero.jpg'" />
+        <div style="position:relative;">
+          <img src="${c.imageUrl}" style="width: 100%; aspect-ratio: 1; object-fit: contain; object-position: center; background: #0a0a0a;" onerror="this.src='hero.jpg'" />
+          <span style="position:absolute; top:6px; left:6px; font-size:0.65rem; font-weight:700; padding:2px 8px; border-radius:3px; background:${c.imageUrl && c.imageUrl.startsWith('data:') ? '#ef4444' : '#22c55e'}; color:#fff;">${c.imageUrl && c.imageUrl.startsWith('data:') ? 'LOCAL ONLY' : 'CLOUD ✓'}</span>
+        </div>
         <div style="padding: 10px 0; flex:1;">
           <p class="t-body-sm" style="color: var(--text-primary); font-weight:500;">${c.caption || 'No caption'}</p>
           ${c.postUrl ? `<a href="${c.postUrl}" target="_blank" rel="noopener" class="t-body-sm text-tertiary" style="text-decoration:underline; font-size:0.75rem; display:inline-block; margin-top:4px;">View Post Link</a>` : ''}
@@ -3391,6 +3403,45 @@ function renderAdminCommunity() {
     `).join("")}
     ${MOCK_COMMUNITY.length === 0 ? '<div style="grid-column: 1/-1; padding:40px; text-align:center; background:var(--bg-surface-elevated); border:1px solid var(--border-subtle);"><p class="text-tertiary">No Instagram photos uploaded yet. Click "Upload Photo" or "Add Image URL" above to feature your posts on the homepage grid.</p></div>' : ''}
   </div>`;
+}
+
+async function migrateLocalCommunityPhotos() {
+  const localPhotos = MOCK_COMMUNITY.filter(c => c.imageUrl && c.imageUrl.startsWith('data:'));
+  if (localPhotos.length === 0) { showToast("No local photos to migrate!"); return; }
+  
+  showToast(`Uploading ${localPhotos.length} local photo(s) to cloud... please wait.`);
+  let successCount = 0;
+  
+  for (const photo of localPhotos) {
+    try {
+      const upRes = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: 'community', imageData: photo.imageUrl })
+      });
+      const upData = await upRes.json();
+      if (upRes.ok && upData.url) {
+        photo.imageUrl = upData.url;
+        successCount++;
+      }
+    } catch(err) {
+      console.error('Failed to migrate photo', photo.id, err);
+    }
+  }
+  
+  // Push all updated posts to DB
+  try {
+    await fetch('/api/community', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(MOCK_COMMUNITY)
+    });
+    try { localStorage.setItem('raag_community', JSON.stringify(MOCK_COMMUNITY)); } catch(e) {}
+    render();
+    showToast(`✅ ${successCount} of ${localPhotos.length} photo(s) synced to cloud! Mobile will now see them.`);
+  } catch(err) {
+    showToast("Failed to save to database: " + err.message);
+  }
 }
 
 async function handleCommunityUpload(e) {
